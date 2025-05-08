@@ -58,7 +58,12 @@ inst = institutional %>%
          rm_board_dif = ROOMBOARD_DIF,
          ratio = RATIO,
          student_fac_ratio = STUFACR,
-         no_aid = OPEFLAG)
+         no_aid = OPEFLAG,
+         ROOMBOARD_ON,
+         ROOMBOARD_OFF,
+         MD_EARN_WNE_INC2_P6,
+         TUITIONFEE_IN,
+         TUITIONFEE_OUT)
 
 write.csv(inst, "cleaned_data.csv", row.names = FALSE)
 

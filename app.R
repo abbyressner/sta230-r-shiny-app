@@ -48,7 +48,7 @@ default_sel <- c(
   "Occidental College"
 )
 
-shared_sidebar <- sidebar(
+adm_sidebar <- sidebar(
   selectizeInput(
     "selectschools",
     "Select school(s):",
@@ -74,6 +74,32 @@ shared_sidebar <- sidebar(
     max = 36
   ),
   actionButton("school_changes", "Show Changes", class = "btn-success")
+)
+
+cost_sidebar <- sidebar(
+  selectizeInput(
+    "selectschools",
+    "Select school(s):",
+    choices = data$name,
+    selected = default_sel,
+    multiple = TRUE,
+    options = list(
+      placeholder = "Type to search...",
+      onInitialize = I('function() { this.setValue(""); }')
+    )
+  ),
+  selectInput(
+    "selectstates",
+    "Choose two states:",
+    choices = data$state,
+    selected = c("MA", "FL"),
+    multiple = TRUE,
+    options = list(
+      placeholder = "Type to search...",
+      onInitialize = I('function() { this.setValue(""); }')
+    )
+  ),
+  actionButton("school_state_changes", "Show Changes", class = "btn-success")
 )
 
 ###### UI ######
@@ -140,6 +166,16 @@ server <- function(input, output, session) {
       filter(name %in% selection)
   })
 
+  selectedStates <- reactive({
+    selection <- input$selectstates
+    if (is.null(selection) || length(selection) == 0) {
+      selection <- c("MA", "FL")
+    }
+    selected = data %>%
+      filter(state %in% selection)
+  })
+
+
   # bar chart (ggplot)
   output$barchart <- renderPlotly({
     input$school_changes
@@ -157,9 +193,7 @@ server <- function(input, output, session) {
 
     p <- ggplot(selected, aes(x = namesbyadm_rate, y = adm_rate, text = hover_text)) +
       geom_bar(stat = "identity", fill = alpha("#648fff", 0.7), color = "#648fff") +
-      geom_text(aes(label = paste0(round(adm_rate * 100), "%")),
-        nudge_y = 0
-      ) +
+      geom_text(aes(label = paste0(round(adm_rate * 100), "%")), nudge_y = 0.5) +
       labs(x = "Schools", y = "Acceptance Rate") +
       theme_minimal() +
       theme(axis.text.x = element_text(face = "bold", angle = 45, hjust = 1))
@@ -295,6 +329,74 @@ server <- function(input, output, session) {
       filter(!is.na(ratio), !is.na(adm_rate), !is.na(tuit_fee_out)) %>%
       select(name, state, city, adm_rate, sat_avg, ug_enrollment, ratio) %>%
       arrange(desc(ratio))
+  })
+  output$radar_plot <- renderPlotly({
+    input$school_changes
+
+    selected <- isolate(selectedStates())
+
+    func_polar_values <- function(s){
+      EN <- selected %>%
+        filter(state==s) %>%
+        select(TUITIONFEE_IN)
+    
+      tuition_in_mean <- mean(EN[!is.na(EN)])
+      
+      MT <- selected %>%
+      filter(state==s) %>%
+      select(TUITIONFEE_OUT)
+      
+      tuition_out_mean <- mean(MT[!is.na(MT)])
+      
+      CM <- selected %>%
+      filter(state==s) %>%
+      select(ROOMBOARD_ON)
+
+      rb_on_mean <- mean(CM[!is.na(CM)])
+      
+      WR <- selected %>%
+        filter(state==s) %>%
+        select(ROOMBOARD_OFF)
+
+      rb_off_mean <- mean(WR[!is.na(WR)])
+
+      ADM<- selected %>%
+        filter(state==s) %>%
+        select(MD_EARN_WNE_INC2_P6)
+
+      earn_mean <- mean(ADM[!is.na(ADM)])
+
+      r = c(tuition_in_mean, tuition_out_mean, rb_on_mean, rb_off_mean, earn_mean, tuition_in_mean),
+      r
+    }
+
+    fig <- plot_ly(
+      type = "scatterpolar",
+      fill = "toself",
+      add_trace(
+        r = func_polar_values(selected$[1,]$state),
+        theta = c("TUITIONFEE_IN", "TUITIONFEE_OUT", "ROOMBOARD_ON", "ROOMBOARD_OFF", "MD_EARN_WNE_INC2_P6", "TUITIONFEE_IN"),
+        name = selected$[1,]$state
+      )
+    fig <- fig %>%
+      add_trace(
+        r = func_polar_values(selected$[2,]$state),
+        theta = c("TUITIONFEE_IN", "TUITIONFEE_OUT", "ROOMBOARD_ON", "ROOMBOARD_OFF", "MD_EARN_WNE_INC2_P6", "TUITIONFEE_IN"),
+        name = selected$[2,]$state
+      )
+
+    fig <- fig %>%
+      layout(
+        polar = list(
+          radialaxis = list(
+            visible = T,
+            range = c(0, 60000)
+          )
+        )
+      )
+    )
+
+    fig
   })
 
   updateSelectizeInput(
