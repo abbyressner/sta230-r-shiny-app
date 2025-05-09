@@ -57,9 +57,9 @@ adm_sidebar <- sidebar(
     multiple = TRUE,
     options = list(placeholder = "Type to search...")
   ),
+  actionButton("school_changes", "Show Changes", class = "btn-success"),
   numericInput("user_sat", "Your SAT Score:", value = 1240, min = 900, max = 1600, step = 10),
-  numericInput("user_act", "Your ACT Score:", value = 27, min = 18, max = 36),
-  actionButton("school_changes", "Show Changes", class = "btn-success")
+  numericInput("user_act", "Your ACT Score:", value = 27, min = 18, max = 36)
 )
 
 cost_sidebar <- sidebar(
@@ -81,7 +81,7 @@ cost_sidebar <- sidebar(
   actionButton("school_state_changes", "Show Changes", class = "btn-success")
 )
 
-sz_sel_sidebar <- sidebar(
+equity_sidebar <- sidebar(
   selectizeInput(
     "selectschools_sz",
     "Select school(s):",
@@ -119,19 +119,21 @@ ui <- page_navbar(
     "Cost",
     layout_sidebar(
       sidebar = cost_sidebar,
-      card(card_header("Net Price by Income Bracket"), card_body(plotlyOutput("income_cost_bar"))),
-      card(card_header("Radar Plot"), card_body(plotlyOutput("radar_plot")))
+      layout_columns(
+        card(card_header("Net Price by Income Bracket"), card_body(plotlyOutput("income_cost_bar"))),
+        card(card_header("Radar Plot"), card_body(plotlyOutput("radar_plot")))
+      )
     )
   ),
   
   nav_panel(
-    "Size/Selectivity",
+    "Equity",
     layout_sidebar(
-      sidebar = sz_sel_sidebar,
+      sidebar = equity_sidebar,
       navset_card_underline(
         nav_panel("Plot", plotlyOutput("top_equit_schools")),
         nav_panel("Table", dataTableOutput("equity_table")),
-        title = "College Accessibility vs. Size and Selectivity"
+        title = "3D Scatter Plot: Equity"
       )
     )
   )
@@ -180,15 +182,16 @@ server <- function(input, output, session) {
   output$dumbbell_sat <- renderPlotly({
     input$school_changes
     selected <- isolate(selectedSchools_adm()) %>%
-      mutate(namesbyscores_desc = reorder(name, sat_p75))
+      mutate(School = reorder(name, sat_p75))
     
-    p <- ggplot(selected, aes(y = namesbyscores_desc)) +
-      geom_segment(aes(x = sat_p25, xend = sat_p75, yend = namesbyscores_desc), color = alpha("#343a40", 0.2), linewidth = 5) +
+    p <- ggplot(selected, aes(y = School)) +
+      geom_segment(aes(x = sat_p25, xend = sat_p75, yend = School), color = alpha("#343a40", 0.2), linewidth = 5) +
       geom_point(aes(x = sat_p25), color = "#00b6b9", size = 5) +
       geom_point(aes(x = sat_p75), color = "#648fff", size = 5) +
       geom_point(aes(x = sat_mid50), color = "#785ef0", size = 5) +
       geom_vline(xintercept = input$user_sat, linetype = "dashed", color = "slategrey", linewidth = 1) +
       scale_x_continuous(limits = c(900, 1600), name = "Composite SAT Score") +
+      labs(y = "") +
       theme_minimal() +
       theme(axis.text.y = element_text(face = "bold"))
     
@@ -198,15 +201,16 @@ server <- function(input, output, session) {
   output$dumbbell_act <- renderPlotly({
     input$school_changes
     selected <- isolate(selectedSchools_adm()) %>%
-      mutate(namesbyscores_desc = reorder(name, act_p75))
+      mutate(School = reorder(name, act_p75))
     
-    p <- ggplot(selected, aes(y = namesbyscores_desc)) +
-      geom_segment(aes(x = act_p25, xend = act_p75, yend = namesbyscores_desc), color = alpha("#343a40", 0.2), linewidth = 5) +
+    p <- ggplot(selected, aes(y = School)) +
+      geom_segment(aes(x = act_p25, xend = act_p75, yend = School), color = alpha("#343a40", 0.2), linewidth = 5) +
       geom_point(aes(x = act_p25), color = "#00b6b9", size = 5) +
       geom_point(aes(x = act_p75), color = "#648fff", size = 5) +
       geom_point(aes(x = act_mid50), color = "#785ef0", size = 5) +
       geom_vline(xintercept = input$user_act, linetype = "dashed", color = "slategrey", linewidth = 1) +
       scale_x_continuous(limits = c(16, 36), name = "ACT Score") +
+      labs(y = "") +
       theme_minimal()
     
     ggplotly(p)
@@ -257,22 +261,22 @@ server <- function(input, output, session) {
     
     plot_ly(
       data = selected, type = "scatter3d", mode = "markers",
-      x = ~sat_avg, y = ~adm_rate, z = ~ug_enrollment,
+      x = ~ratio, y = ~adm_rate, z = ~TUITIONFEE_OUT,
       color = ~state,
-      text = ~paste(name, "<br>Average SAT:", sat_avg, "<br>Admit Rate:", round(adm_rate, 2), "<br># of undergrads: ", ug_enrollment),
+      text = ~paste(name, "<br>Equity ratio: ", ratio, "<br>Admit Rate: ", round(adm_rate, 2), "<br>Tuition/Fees: ", TUITIONFEE_OUT),
       hoverinfo = "text", marker = list(size = 5, opacity = 0.7)
     ) %>%
       layout(scene = list(
-        xaxis = list(title = "Average SAT Score"),
+        xaxis = list(title = "Equity Ratio"),
         yaxis = list(title = "Acceptance Rate"),
-        zaxis = list(title = "Undergrad Enrollment")
+        zaxis = list(title = "Tuition/Fees")
       ))
   })
   
   output$equity_table <- renderDataTable({
     selectedSchools_sz() %>%
       filter(!is.na(ratio), !is.na(adm_rate), !is.na(TUITIONFEE_OUT)) %>%
-      select(name, state, city, adm_rate, sat_avg, ug_enrollment, ratio) %>%
+      select(name, state, city, adm_rate, ratio) %>%
       arrange(desc(ratio))
   })
   
