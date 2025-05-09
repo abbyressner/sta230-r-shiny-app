@@ -47,7 +47,6 @@ inst = institutional %>%
          sat_p75,
          ug_enrollment = UGDS,
          net_price,
-         tuit_fee_out = TUITIONFEE_OUT,
          cost_avg_income_0_30k = NPT41_PRIV,
          cost_avg_income_30_48k = NPT42_PRIV,
          cost_avg_income_48_75k = NPT43_PRIV,
